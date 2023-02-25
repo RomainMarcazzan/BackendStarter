@@ -115,8 +115,9 @@ export const logout = async (req, res) => {
   }
 };
 
-export const forgotPassword = async (req, res) => {
+export const forgetPassword = async (req, res) => {
   const { email } = req.body;
+
   try {
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
@@ -124,14 +125,16 @@ export const forgotPassword = async (req, res) => {
     }
 
     const resetCode = Math.floor(100000 + Math.random() * 900000);
+
     await prisma.user.update({
       where: { id: user.id },
       data: {
-        resetCode: resetCode,
-        resetCodeExpiry: new Date(Date.now() + 300000), // token expires after 5 minutes
+        resetCode: resetCode.toString(),
+        resetCodeExpiry: new Date(Date.now() + 300000),
       },
     });
 
+    console.log({ email: user.email, resetCode: resetCode.toString() });
     await sendPasswordResetCode(user.email, resetCode.toString());
 
     res.json({ message: 'Password reset email sent successfully' });
