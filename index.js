@@ -19,7 +19,6 @@ app.use('/gear-types', gearTypeRoutes);
 app.use('/engine-types', engineTypeRoutes);
 app.get('/', (req, res) => {
   res.send('Hello World!');
-  console.log('ninja');
 });
 
 app.listen(process.env.PORT || 4000, () => {

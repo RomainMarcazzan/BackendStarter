@@ -5,6 +5,7 @@ import {
 } from '../services/token.service.js';
 import bcrypt from 'bcrypt';
 import { prisma } from '../../utils/prisma.js';
+import { sendPasswordResetCode } from '../../utils/nodemailer.js';
 
 export const register = async (req, res) => {
   const { email, password, firstname, lastname, role } = req.body;
@@ -111,5 +112,66 @@ export const logout = async (req, res) => {
     res.json({ message: 'logout successfull' });
   } catch (error) {
     res.status(500).json({ message: 'An error occured while logging out' });
+  }
+};
+
+export const forgotPassword = async (req, res) => {
+  const { email } = req.body;
+  try {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const resetCode = Math.floor(100000 + Math.random() * 900000);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        resetCode: resetCode,
+        resetCodeExpiry: new Date(Date.now() + 300000), // token expires after 5 minutes
+      },
+    });
+
+    await sendPasswordResetCode(user.email, resetCode.toString());
+
+    res.json({ message: 'Password reset email sent successfully' });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: 'An error occurred while resetting password' });
+  }
+};
+
+export const resetPassword = async (req, res) => {
+  const { email, code, password } = req.body;
+  try {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (user.resetCode !== code) {
+      return res.status(401).json({ message: 'Invalid code' });
+    }
+    const now = new Date().toISOString();
+    if (now > user.resetCodeExpiry.toISOString()) {
+      return res.status(401).json({ message: 'Verification code expired' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        resetCode: null,
+        resetCodeExpiry: null,
+      },
+    });
+
+    res.json({ message: 'Password reset successfully' });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: 'An error occurred while resetting password' });
   }
 };
